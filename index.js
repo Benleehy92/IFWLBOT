@@ -7,6 +7,7 @@ console.log("Starting IFWL Discord bot v0.4...");
 console.log("Discord token loaded:", process.env.DISCORD_TOKEN ? "YES" : "NO");
 console.log("Google Sheet ID loaded:", process.env.GOOGLE_SHEET_ID ? "YES" : "NO");
 console.log("Google service file:", process.env.GOOGLE_SERVICE_ACCOUNT_FILE || "NOT SET");
+console.log("Google service JSON loaded:", process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? "YES" : "NO");
 console.log("Apps Script URL loaded:", process.env.APPS_SCRIPT_URL ? "YES" : "NO");
 
 const fs = require("fs");
@@ -82,18 +83,41 @@ function getServiceAccountPath() {
 async function getSheetsClient() {
   if (sheetsClient) return sheetsClient;
 
-  const serviceAccountPath = getServiceAccountPath();
+  let auth;
 
-  if (!fs.existsSync(serviceAccountPath)) {
-    throw new Error(
-      `Google service account file not found: ${serviceAccountPath}`
-    );
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    console.log("Using Google service account from Railway variable...");
+
+    let credentials;
+
+    try {
+      credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    } catch (error) {
+      throw new Error(
+        "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON. Check the Railway variable."
+      );
+    }
+
+    auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"]
+    });
+  } else {
+    console.log("Using Google service account from local JSON file...");
+
+    const serviceAccountPath = getServiceAccountPath();
+
+    if (!fs.existsSync(serviceAccountPath)) {
+      throw new Error(
+        `Google service account file not found: ${serviceAccountPath}`
+      );
+    }
+
+    auth = new google.auth.GoogleAuth({
+      keyFile: serviceAccountPath,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"]
+    });
   }
-
-  const auth = new google.auth.GoogleAuth({
-    keyFile: serviceAccountPath,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"]
-  });
 
   sheetsClient = google.sheets({
     version: "v4",
